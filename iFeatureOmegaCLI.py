@@ -588,7 +588,7 @@ class iProtein(Sequence):
             encodings = [header]
             
             # Process each sequence
-            for name, sequence, label in self.fasta_list:
+            for name, sequence, label, _ in self.fasta_list:
                 sequence = re.sub('-', '', sequence)
                 seq_length = len(sequence)
                 if seq_length < 3:  # Skip if sequence is too short
