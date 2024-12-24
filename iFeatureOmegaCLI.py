@@ -47,7 +47,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 class Sequence(object):
-    def __init__(self, file):
+    def __init__(self, data_dict=None, file=None):
         self.file = file                              # whole file path
         self.fasta_list = []                          # 2-D list [sampleName, fragment, label, training or testing]
         self.sample_purpose = None                    # 1-D ndarray, sample used as training dataset (True) or testing dataset(False)
@@ -60,7 +60,14 @@ class Sequence(object):
         self.maximum_length_without_minus = 0         # int
         self.error_msg = ''                           # string
 
-        self.fasta_list, self.sample_purpose, self.error_msg = self.read_fasta(self.file)
+        if file is not None:
+            self.fasta_list, self.sample_purpose, self.error_msg = self.read_fasta(self.file)
+        elif data_dict is not None:
+            self.fasta_list, self.sample_purpose, self.error_msg = self.process_data_dict(data_dict)
+        else:
+            self.error_msg = 'File format error.'
+            
+            
         self.sequence_number = len(self.fasta_list)
 
         if self.sequence_number > 0:
@@ -90,6 +97,17 @@ class Sequence(object):
             name = header_array[0]
             label = header_array[1] if len(header_array) >= 2 else '0'
             label_train = header_array[2] if len(header_array) >= 3 else 'training'
+            fasta_sequences.append([name, sequence, label, label_train])
+        sample_purpose = np.array([item[3] == 'training' for item in fasta_sequences])
+        return fasta_sequences, sample_purpose, msg
+    
+    def process_data_dict(self, data_dict):
+        msg = ''
+        fasta_sequences = []
+        for name, sequence in data_dict.items():
+            sequence = re.sub('[^ACDEFGHIKLMNPQRSTUVWY-]', '-', sequence.upper())
+            label = '0'
+            label_train = 'training'
             fasta_sequences.append([name, sequence, label, label_train])
         sample_purpose = np.array([item[3] == 'training' for item in fasta_sequences])
         return fasta_sequences, sample_purpose, msg
@@ -168,8 +186,8 @@ class iProtein(Sequence):
     >>> protein.to_csv("AAC.csv", "index=False", header=False)
     """
 
-    def __init__(self, file):
-        super(iProtein, self).__init__(file=file)
+    def __init__(self, data_dict=None, file=None):
+        super(iProtein, self).__init__(data_dict=data_dict, file=file)
         self.__default_para_dict = {
             'EAAC': {'sliding_window': 5},
             'CKSAAP type 1': {'kspace': 3},
