@@ -580,27 +580,47 @@ class iProtein(Sequence):
     def _TPC(self, normalized=True):
         try:
             AA = 'ACDEFGHIKLMNPQRSTVWY'
-            encodings = []
+            AA_dict = {aa: i for i, aa in enumerate(AA)}
             triPeptides = ['TPC_' + aa1 + aa2 + aa3 for aa1 in AA for aa2 in AA for aa3 in AA]
             header = ['SampleName'] + triPeptides
-            encodings.append(header)
-            AADict = {}
-            for i in range(len(AA)):
-                AADict[AA[i]] = i
-            for i in self.fasta_list:
-                name, sequence, label = i[0], re.sub('-', '', i[1]), i[2]
-                code = [name]
-                tmpCode = [0] * 8000
-                for j in range(len(sequence) - 3 + 1):
-                    tmpCode[AADict[sequence[j]] * 400 + AADict[sequence[j + 1]] * 20 + AADict[sequence[j + 2]]] = tmpCode[AADict[sequence[j]] * 400 + AADict[sequence[j + 1]] * 20 + AADict[sequence[j + 2]]] + 1
-                if sum(tmpCode) != 0:
-                    if normalized:
-                        tmpCode = [i / sum(tmpCode) for i in tmpCode]
-                code = code + tmpCode
-                encodings.append(code)
-            encodings = np.array(encodings)
-            self.encodings = pd.DataFrame(encodings[1:, 1:].astype(float), columns=encodings[0, 1:], index=encodings[1:, 0])
-            return True            
+            
+            # Pre-allocate encoding list
+            encodings = [header]
+            
+            # Process each sequence
+            for name, sequence, label in self.fasta_list:
+                sequence = re.sub('-', '', sequence)
+                seq_length = len(sequence)
+                if seq_length < 3:  # Skip if sequence is too short
+                    continue
+                
+                # Initialize temporary count array
+                tmp_code = np.zeros(8000, dtype=float)
+                
+                # Generate indices and increment counts
+                for j in range(seq_length - 2):
+                    idx = (AA_dict[sequence[j]] * 400 +
+                        AA_dict[sequence[j + 1]] * 20 +
+                        AA_dict[sequence[j + 2]])
+                    tmp_code[idx] += 1
+                
+                # Normalize if needed
+                if normalized:
+                    total_count = tmp_code.sum()
+                    if total_count > 0:
+                        tmp_code /= total_count
+                
+                # Append result
+                encodings.append([name] + tmp_code.tolist())
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(
+                data=np.array(encodings[1:], dtype=object)[:, 1:].astype(float),
+                columns=triPeptides,
+                index=np.array(encodings[1:], dtype=object)[:, 0]
+            )
+            self.encodings = df
+            return True
         except Exception as e:
             self.error_msg = str(e)
             return False
